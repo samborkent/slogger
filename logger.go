@@ -3,7 +3,7 @@ slogger is a utility package which wraps a slog.Handler to provide some addition
 The following features are added:
   - Create a handler with standardized config which can be extended through functional options.
   - Automatically enable source for debug logs.
-  - Context aware log/slog methods will extract Elastic APM or OpenTelemetry trace ID and span ID from context if configured.
+  - Context aware log/slog methods will extract OpenTelemetry trace ID and span ID from context if configured.
   - Set default log/slog logger to enable the use of the global slog methods with the same config.
   - Implements http.Handler to enable changing the log level at runtime.
   - Type safe logging methods for better performance, and enforcing log attribute typing.
@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
+	"time"
 )
 
 // Global log level that can be changed at runtime as the logger is a HTTP handler.
@@ -49,8 +51,6 @@ func New(options ...Option) (*Logger, error) {
 
 	handlerOptions := &slog.HandlerOptions{
 		Level: programLevel,
-		// Automatically enable source for debug logs.
-		AddSource: config.logLevel == slog.LevelDebug,
 	}
 
 	// Create handler based on configured tracing type.
@@ -78,40 +78,76 @@ func New(options ...Option) (*Logger, error) {
 
 // Type safe debug log method.
 func (l *Logger) Debug(message string, attributes ...slog.Attr) {
-	l.Logger.LogAttrs(context.Background(), slog.LevelDebug, message, attributes...)
+	l.logAttrs(context.Background(), slog.LevelDebug, message, attributes...)
 }
 
 // Type safe context-aware debug log method.
 func (l *Logger) DebugContext(ctx context.Context, message string, attributes ...slog.Attr) {
-	l.Logger.LogAttrs(ctx, slog.LevelDebug, message, attributes...)
+	l.logAttrs(ctx, slog.LevelDebug, message, attributes...)
 }
 
 // Type safe info log method.
 func (l *Logger) Info(message string, attributes ...slog.Attr) {
-	l.Logger.LogAttrs(context.Background(), slog.LevelInfo, message, attributes...)
+	l.logAttrs(context.Background(), slog.LevelInfo, message, attributes...)
 }
 
 // Type safe context-aware info log method.
 func (l *Logger) InfoContext(ctx context.Context, message string, attributes ...slog.Attr) {
-	l.Logger.LogAttrs(ctx, slog.LevelInfo, message, attributes...)
+	l.logAttrs(ctx, slog.LevelInfo, message, attributes...)
 }
 
 // Type safe warn log method.
 func (l *Logger) Warn(message string, attributes ...slog.Attr) {
-	l.Logger.LogAttrs(context.Background(), slog.LevelWarn, message, attributes...)
+	l.logAttrs(context.Background(), slog.LevelWarn, message, attributes...)
 }
 
 // Type safe context-aware warn log method.
 func (l *Logger) WarnContext(ctx context.Context, message string, attributes ...slog.Attr) {
-	l.Logger.LogAttrs(ctx, slog.LevelWarn, message, attributes...)
+	l.logAttrs(ctx, slog.LevelWarn, message, attributes...)
 }
 
 // Type safe warn log method.
 func (l *Logger) Error(message string, attributes ...slog.Attr) {
-	l.Logger.LogAttrs(context.Background(), slog.LevelError, message, attributes...)
+	l.logAttrs(context.Background(), slog.LevelError, message, attributes...)
 }
 
 // Type safe context-aware warn log method.
 func (l *Logger) ErrorContext(ctx context.Context, message string, attributes ...slog.Attr) {
-	l.Logger.LogAttrs(ctx, slog.LevelError, message, attributes...)
+	l.logAttrs(ctx, slog.LevelError, message, attributes...)
+}
+
+// Number of stack frames to skip when ketting program counters.
+const skipFrames = 3
+
+// Forked from log/slog/logger.go
+// logAttrs is like [Logger.log], but for methods that take ...Attr.
+func (l *Logger) logAttrs(ctx context.Context, level slog.Level, message string, attributes ...slog.Attr) {
+	if !l.Enabled(ctx, level) {
+		return
+	}
+
+	var pcs [1]uintptr
+	runtime.Callers(skipFrames, pcs[:])
+
+	record := slog.NewRecord(time.Now(), level, message, pcs[0])
+
+	// Add source information for debug logs
+	if level == slog.LevelDebug {
+		frames := runtime.CallersFrames([]uintptr{pcs[0]})
+		frame, _ := frames.Next()
+		source := &slog.Source{
+			Function: frame.Function,
+			File:     frame.File,
+			Line:     frame.Line,
+		}
+		attributes = append(attributes, slog.Any("source", source))
+	}
+
+	record.AddAttrs(attributes...)
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	_ = l.Handler().Handle(ctx, record)
 }

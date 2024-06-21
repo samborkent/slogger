@@ -49,7 +49,7 @@ func WithSlogLevel(logLevel slog.Level) Option {
 
 const defaultLogLevel = slog.LevelInfo
 
-var defaultConfig config = config{
+var defaultConfig = config{
 	logLevel:    defaultLogLevel,
 	tracingType: tracingTypeDisabled,
 }

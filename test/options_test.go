@@ -1,4 +1,4 @@
-package slogger
+package slogger_test
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 )
 
 func TestWithLogLevel(t *testing.T) {
+	t.Parallel()
+
 	t.Run("debug", func(t *testing.T) {
 		t.Parallel()
 
@@ -55,6 +57,8 @@ func TestWithLogLevel(t *testing.T) {
 }
 
 func TestWithSlogLevel(t *testing.T) {
+	t.Parallel()
+
 	t.Run("debug", func(t *testing.T) {
 		t.Parallel()
 
