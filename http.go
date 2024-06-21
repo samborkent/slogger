@@ -24,24 +24,10 @@ func (l *Logger) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Read the request body.
-	bodyData := make([]byte, 512)
-
-	nBytesRead, err := req.Body.Read(bodyData)
-	if err != nil {
-		http.Error(writer, "reading request body: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if nBytesRead == 0 {
-		http.Error(writer, "empty request", http.StatusBadRequest)
-		return
-	}
-
 	// Parse the log level request.
 	var logLevelRequest LogLevelRequest
 
-	if err := json.Unmarshal(bodyData[:nBytesRead], &logLevelRequest); err != nil {
+	if err := json.NewDecoder(req.Body).Decode(&logLevelRequest); err != nil {
 		http.Error(writer, "parsing request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
