@@ -16,8 +16,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-
-	"github.com/samborkent/slogger/internal/otel"
 )
 
 // Global log level that can be changed at runtime as the logger is a HTTP handler.
@@ -60,7 +58,7 @@ func New(options ...Option) (*Logger, error) {
 
 	switch config.tracingType {
 	case tracingTypeOpenTelemetry:
-		handler = otel.Handler{
+		handler = OtelHandler{
 			slog.NewJSONHandler(os.Stderr, handlerOptions),
 		}
 	case tracingTypeDisabled:

@@ -1,4 +1,4 @@
-package otel
+package slogger
 
 import (
 	"context"
@@ -14,12 +14,12 @@ const (
 	spanIDKey  = "spanId"
 )
 
-type Handler struct {
+type OtelHandler struct {
 	slog.Handler
 }
 
 // Extract OpenTelemetry tracing data from context and add to logs if available.
-func (t Handler) Handle(ctx context.Context, record slog.Record) error {
+func (t OtelHandler) Handle(ctx context.Context, record slog.Record) error {
 	// Only trace logs that received non-empty contexts
 	if ctx != context.Background() {
 		// Extract traced span context from context
