@@ -12,8 +12,6 @@ package slogger
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
@@ -29,25 +27,15 @@ type Logger struct {
 	*slog.Logger
 }
 
+func New() *Logger {
+	log, _ := NewWithOptions(Options{})
+	return log
+}
+
 // Create a slog logger with traced JSON handler.
-func New(options ...Option) (*Logger, error) {
-	// Process options
-	config := defaultConfig
-
-	errs := make([]error, 0, len(options))
-
-	for _, option := range options {
-		if err := option(&config); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if err := errors.Join(errs...); err != nil {
-		return nil, fmt.Errorf("processing options: %w", err)
-	}
-
+func NewWithOptions(options Options) (*Logger, error) {
 	// Set global log level.
-	programLevel.Set(config.logLevel)
+	programLevel.Set(options.LogLevel)
 
 	handlerOptions := &slog.HandlerOptions{
 		Level: programLevel,
@@ -56,14 +44,11 @@ func New(options ...Option) (*Logger, error) {
 	// Create handler based on configured tracing type.
 	var handler slog.Handler
 
-	switch config.tracingType {
-	case tracingTypeOpenTelemetry:
+	if options.TracingEnabled {
 		handler = OtelHandler{
 			slog.NewJSONHandler(os.Stderr, handlerOptions),
 		}
-	case tracingTypeDisabled:
-		fallthrough
-	default:
+	} else {
 		handler = slog.NewJSONHandler(os.Stderr, handlerOptions)
 	}
 
@@ -119,6 +104,13 @@ func (l *Logger) ErrorContext(ctx context.Context, message string, attributes ..
 // Number of stack frames to skip when ketting program counters.
 const skipFrames = 3
 
+// Source log keys.
+const (
+	functionKey = "function"
+	fileKey     = "file"
+	lineKey     = "line"
+)
+
 // Forked from log/slog/logger.go
 // logAttrs is like [Logger.log], but for methods that take ...Attr.
 func (l *Logger) logAttrs(ctx context.Context, level slog.Level, message string, attributes ...slog.Attr) {
@@ -131,19 +123,30 @@ func (l *Logger) logAttrs(ctx context.Context, level slog.Level, message string,
 
 	record := slog.NewRecord(time.Now(), level, message, pcs[0])
 
+	record.AddAttrs(attributes...)
+
 	// Add source information for debug logs
 	if level == slog.LevelDebug {
-		frames := runtime.CallersFrames([]uintptr{pcs[0]})
-		frame, _ := frames.Next()
-		source := &slog.Source{
-			Function: frame.Function,
-			File:     frame.File,
-			Line:     frame.Line,
-		}
-		attributes = append(attributes, slog.Any("source", source))
-	}
+		frame, _ := runtime.CallersFrames(pcs[:]).Next()
 
-	record.AddAttrs(attributes...)
+		// Log either function or file info to minimize duplicate information.
+		var funcOrFile slog.Attr
+
+		if frame.Function != "" {
+			funcOrFile = slog.String(functionKey, frame.Function)
+		} else {
+			// Function info is not guaranteed to be available, use file info as alternative.
+			funcOrFile = slog.String(fileKey, frame.File)
+		}
+
+		record.AddAttrs(slog.Attr{
+			Key: slog.SourceKey,
+			Value: slog.GroupValue(
+				funcOrFile,
+				slog.Int(lineKey, frame.Line),
+			),
+		})
+	}
 
 	if ctx == nil {
 		ctx = context.Background()

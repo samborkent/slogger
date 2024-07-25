@@ -33,7 +33,7 @@ func (l *Logger) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 	}
 
 	// Convert the log level string to a slog.Level.
-	logLevel, err := stringToSlogLevel(logLevelRequest.LogLevel)
+	logLevel, err := SlogLevel(logLevelRequest.LogLevel)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return

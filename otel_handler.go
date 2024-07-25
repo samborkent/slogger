@@ -7,11 +7,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// TODO 2024-06-20 Sam Borkent: add test cases.
-
 const (
-	traceIDKey = "traceId"
-	spanIDKey  = "spanId"
+	TraceIDKey = "trace-id"
+	SpanIDKey  = "span-id"
 )
 
 type OtelHandler struct {
@@ -26,11 +24,11 @@ func (t OtelHandler) Handle(ctx context.Context, record slog.Record) error {
 		spanCtx := trace.SpanContextFromContext(ctx)
 
 		if spanCtx.HasTraceID() {
-			record.AddAttrs(slog.String(traceIDKey, spanCtx.TraceID().String()))
+			record.AddAttrs(slog.String(TraceIDKey, spanCtx.TraceID().String()))
 		}
 
 		if spanCtx.HasSpanID() {
-			record.AddAttrs(slog.String(spanIDKey, spanCtx.SpanID().String()))
+			record.AddAttrs(slog.String(SpanIDKey, spanCtx.SpanID().String()))
 		}
 	}
 
